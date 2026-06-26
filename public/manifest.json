@@ -1,0 +1,24 @@
+{
+  "short_name": "Autovisión",
+  "name": "Autovisión Pro",
+  "description": "Personaliza, protege y mejora tu vehículo con servicios automotrices premium como polarizado, luces LED, sonido, pulido y más.",
+  "icons": [
+    {
+      "src": "/icon-512.jpg",
+      "type": "image/jpeg",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b0f19",
+  "theme_color": "#00e5ff",
+  "display": "standalone",
+  "orientation": "portrait"
+}

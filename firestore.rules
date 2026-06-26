@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == "Deo4NaEV22cKLCIyexpK8u9UhTX2";
+    }
+
+    function isTechnician() {
+      return request.auth != null && request.auth.uid == "HHIdRIm7BPh2TTwum7hefVwoY4Z2";
+    }
+
+    // Services Collection
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Gallery Showcase Collection
+    match /gallery/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Bank and system settings
+    match /settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Booked Appointments
+    match /appointments/{appointmentId} {
+      allow create: if true;
+      allow read: if isAdmin() || isTechnician();
+      allow update, delete: if isAdmin();
+    }
+
+    // Custom Accessory Requests
+    match /custom_accessory_requests/{requestId} {
+      allow create: if true;
+      allow read: if isAdmin() || isTechnician();
+      allow update, delete: if isAdmin();
+    }
+  }
+}

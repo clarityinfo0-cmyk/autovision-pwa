@@ -1,0 +1,10 @@
+{
+  "name": "Autovisión",
+  "description": "Personaliza, protege y mejora tu vehículo con servicios automotrices premium como polarizado, luces LED, sonido, pulido y más.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

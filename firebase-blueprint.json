@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "Service": {
+      "title": "Service",
+      "description": "A service offered by the workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "priceFrom": { "type": "number" },
+        "duration": { "type": "string" },
+        "image": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "description", "category", "priceFrom", "duration", "active"]
+    },
+    "GalleryItem": {
+      "title": "GalleryItem",
+      "description": "An item in the before/after showcase gallery",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrlBefore": { "type": "string" },
+        "imageUrlAfter": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["title", "imageUrlBefore", "imageUrlAfter"]
+    },
+    "BankSettings": {
+      "title": "BankSettings",
+      "description": "Bank account details for bank transfers",
+      "type": "object",
+      "properties": {
+        "bankName": { "type": "string" },
+        "accountHolder": { "type": "string" },
+        "clabe": { "type": "string" },
+        "accountNumber": { "type": "string" }
+      },
+      "required": ["bankName", "accountHolder", "clabe", "accountNumber"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "An appointment booked by a client",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "vehicle": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "serviceType": { "type": "string", "enum": ["taller", "domicilio"] },
+        "addressText": { "type": "string" },
+        "references": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": ["number", "null"] },
+            "lng": { "type": ["number", "null"] }
+          }
+        },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "processing", "completed", "cancelled"] },
+        "paymentMethod": { "type": "string", "enum": ["cash", "transfer", "mercadopago"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "proof_sent", "paid", "rejected"] },
+        "servicePrice": { "type": "number" },
+        "travelFee": { "type": "number" },
+        "total": { "type": "number" },
+        "commissionRate": { "type": "number" },
+        "commissionAmount": { "type": "number" },
+        "receiptUrl": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["customerName", "phone", "vehicle", "serviceId", "serviceName", "serviceType", "date", "time", "status", "paymentMethod", "paymentStatus", "servicePrice", "travelFee", "total", "commissionRate", "commissionAmount", "createdAt"]
+    },
+    "CustomAccessoryRequest": {
+      "title": "CustomAccessoryRequest",
+      "description": "A quote request for custom accessories",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "string" },
+        "accessoryName": { "type": "string" },
+        "notes": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "quoted", "completed"] },
+        "quotedPrice": { "type": "number" },
+        "aiAnalysis": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["customerName", "phone", "brand", "model", "year", "accessoryName", "notes", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Collection of services"
+    },
+    "/gallery/{itemId}": {
+      "schema": "GalleryItem",
+      "description": "Showcase items with before and after images"
+    },
+    "/settings/{settingsId}": {
+      "schema": "BankSettings",
+      "description": "Settings for bank details"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Booked service appointments"
+    },
+    "/custom_accessory_requests/{requestId}": {
+      "schema": "CustomAccessoryRequest",
+      "description": "Custom accessory quotation requests"
+    }
+  }
+}
