@@ -199,7 +199,7 @@ export default function App() {
           <div className="border-t border-slate-900 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500">
             <span>© 2026 Autovisión Pro. Todos los derechos reservados.</span>
             <span className="flex items-center gap-1">
-              Calidad premium garantizada por Adrián <Heart className="h-3 w-3 text-cyan-400 fill-cyan-400" />
+              Calidad premium garantizada por Autovisión <Heart className="h-3 w-3 text-cyan-400 fill-cyan-400" />
             </span>
           </div>
         </div>

@@ -114,7 +114,7 @@ export const INITIAL_SERVICES: Service[] = [
   {
     id: "paquete-vision-luces-polarizado",
     name: "Paquete Visión Completa (LED + Polarizado)",
-    description: "Instalación combinada de Focos LED Premium de alta potencia (12,000 LM) más Polarizado de tu elección para todo tu vehículo. ¡De cortesía especial por Adrián, te regalamos un aromatizante premium de larga duración!",
+    description: "Instalación combinada de Focos LED Premium de alta potencia (12,000 LM) más Polarizado de tu elección para todo tu vehículo. ¡De cortesía especial de Autovisión, te regalamos un aromatizante premium de larga duración!",
     category: "Paquetes",
     priceFrom: 2100,
     duration: "3.5 horas",

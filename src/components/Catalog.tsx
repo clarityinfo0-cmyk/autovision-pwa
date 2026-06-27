@@ -43,7 +43,7 @@ export default function Catalog({ services, onSelectService, setCurrentTab }: Ca
           Nuestros <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-400 drop-shadow-[0_0_15px_rgba(37,99,235,0.3)]">Servicios</span>
         </h1>
         <p className="mt-4 text-slate-400">
-          Explora nuestro catálogo completo de modificaciones, protección y detallado automotriz premium. Adrián y su equipo garantizan la mejor calidad.
+          Explora nuestro catálogo completo de modificaciones, protección y detallado automotriz premium. Nuestro equipo certificado garantiza la mejor calidad.
         </p>
       </div>
 

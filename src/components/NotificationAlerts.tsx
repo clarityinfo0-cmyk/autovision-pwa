@@ -375,7 +375,7 @@ export default function NotificationAlerts({
 
                   {isTechnician && alert.type === "appointment" && (
                     <div className="bg-amber-950/20 border border-amber-500/15 text-[9px] text-amber-500 rounded-lg p-1.5 text-center font-medium">
-                      🛡️ Vista de Técnico (Solo el Administrador Adrián puede confirmar citas)
+                      🛡️ Vista de Técnico (Solo el Administrador puede confirmar citas)
                     </div>
                   )}
 

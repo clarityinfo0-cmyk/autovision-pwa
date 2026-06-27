@@ -64,17 +64,22 @@ export default function AdminPanel() {
   const [services, setServices] = useState<Service[]>([]);
   const [bankSettings, setBankSettings] = useState<BankSettings>({
     bankName: "BBVA México",
-    accountHolder: "Adrián Autovisión S.A.",
+    accountHolder: "Autovisión Premium S.A.",
     clabe: "0121 8000 1234 5678 90",
     accountNumber: "1234 5678 90"
   });
 
   // Navigation tab
-  const [adminTab, setAdminTab] = useState<"dashboard" | "appointments" | "requests" | "gallery" | "services" | "bank">("dashboard");
+  const [adminTab, setAdminTab] = useState<"dashboard" | "appointments" | "requests" | "gallery" | "services" | "bank" | "transactions">("dashboard");
 
   // Search/Filters in Admin
   const [apptSearch, setApptSearch] = useState("");
   const [apptStatusFilter, setApptStatusFilter] = useState("all");
+
+  // Stripe Transactions Tab Specific Filters
+  const [stripeFilterStatus, setStripeFilterStatus] = useState<"all" | "paid" | "pending">("paid");
+  const [stripeDateFilter, setStripeDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [stripeSearch, setStripeSearch] = useState("");
 
   // Forms states
   const [newGallery, setNewGallery] = useState({
@@ -173,7 +178,7 @@ export default function AdminPanel() {
     const completed = appointments.filter(a => a.status === "completed");
     
     const earnings = completed.reduce((sum, a) => sum + (a.total || 0), 0);
-    const commissions = earnings * 0.15; // Adrian's 15% commission
+    const commissions = earnings * 0.15; // Autovisión's 15% commission
 
     // Most requested services
     const serviceCounts: { [name: string]: number } = {};
@@ -229,7 +234,7 @@ export default function AdminPanel() {
   const getWhatsAppApptLink = (appt: Appointment) => {
     const cleanPhone = appt.phone.replace(/\D/g, "");
     const text = encodeURIComponent(
-      `Hola ${appt.customerName}, soy Adrián de Autovisión. Te escribo para coordinar los detalles de tu cita de ${appt.serviceName} agendada para el día ${appt.date} a las ${appt.time} hs.`
+      `Hola ${appt.customerName}, te escribimos de Autovisión. Te contacto para coordinar los detalles de tu cita de ${appt.serviceName} agendada para el día ${appt.date} a las ${appt.time} hs.`
     );
     return `https://wa.me/521${cleanPhone}?text=${text}`;
   };
@@ -237,7 +242,7 @@ export default function AdminPanel() {
   const getWhatsAppRequestLink = (req: CustomAccessoryRequest) => {
     const cleanPhone = req.phone.replace(/\D/g, "");
     const text = encodeURIComponent(
-      `Hola ${req.customerName}, soy Adrián de Autovisión. Ya tengo el presupuesto listo de tu accesorio especial (${req.accessoryName}) para tu coche ${req.brand} ${req.model} (${req.year}). El costo total instalado es de $${req.quotedPrice} MXN.`
+      `Hola ${req.customerName}, te escribimos de Autovisión. Ya tengo el presupuesto listo de tu accesorio especial (${req.accessoryName}) para tu coche ${req.brand} ${req.model} (${req.year}). El costo total instalado es de $${req.quotedPrice} MXN.`
     );
     return `https://wa.me/521${cleanPhone}?text=${text}`;
   };
@@ -366,6 +371,124 @@ export default function AdminPanel() {
       return matchSearch && matchStatus;
     });
   }, [appointments, apptSearch, apptStatusFilter]);
+
+
+  // Filter appointments for Stripe Transactions (paymentMethod === "card")
+  const stripeAppointments = React.useMemo(() => {
+    return appointments.filter((appt) => appt.paymentMethod === "card");
+  }, [appointments]);
+
+  const filteredStripeAppts = React.useMemo(() => {
+    return stripeAppointments.filter((appt) => {
+      // 1. Status Filter
+      if (stripeFilterStatus !== "all") {
+        if (stripeFilterStatus === "paid" && appt.paymentStatus !== "paid") return false;
+        if (stripeFilterStatus === "pending" && appt.paymentStatus === "paid") return false;
+      }
+
+      // 2. Date Filter
+      if (stripeDateFilter !== "all") {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const apptDateStr = appt.date; // assuming YYYY-MM-DD
+
+        if (stripeDateFilter === "today") {
+          if (apptDateStr !== todayStr) return false;
+        } else if (stripeDateFilter === "week") {
+          const apptDate = new Date(apptDateStr);
+          const diffTime = Math.abs(new Date().getTime() - apptDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays > 7) return false;
+        } else if (stripeDateFilter === "month") {
+          const apptDate = new Date(apptDateStr);
+          const diffTime = Math.abs(new Date().getTime() - apptDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays > 30) return false;
+        }
+      }
+
+      // 3. Search text
+      if (stripeSearch.trim() !== "") {
+        const query = stripeSearch.toLowerCase();
+        const nameMatch = appt.customerName?.toLowerCase().includes(query);
+        const vehicleMatch = appt.vehicle?.toLowerCase().includes(query);
+        const serviceMatch = appt.serviceName?.toLowerCase().includes(query);
+        const phoneMatch = appt.phone?.toLowerCase().includes(query);
+        const emailMatch = (appt.customerEmail || "")?.toLowerCase().includes(query);
+        const idMatch = (appt.id || "")?.toLowerCase().includes(query);
+        
+        return nameMatch || vehicleMatch || serviceMatch || phoneMatch || emailMatch || idMatch;
+      }
+
+      return true;
+    });
+  }, [stripeAppointments, stripeFilterStatus, stripeDateFilter, stripeSearch]);
+
+  // Stripe accounting metrics calculations
+  const totalStripeGross = React.useMemo(() => {
+    return filteredStripeAppts
+      .filter(a => a.paymentStatus === "paid")
+      .reduce((sum, a) => sum + (a.total || 0), 0);
+  }, [filteredStripeAppts]);
+
+  // Stripe fee in Mexico is 3.6% + $3.00 MXN + 16% IVA on the fee
+  const totalStripeFees = React.useMemo(() => {
+    return filteredStripeAppts
+      .filter(a => a.paymentStatus === "paid")
+      .reduce((sum, a) => sum + (((a.total || 0) * 0.036 + 3) * 1.16), 0);
+  }, [filteredStripeAppts]);
+
+  const totalStripeNet = totalStripeGross - totalStripeFees;
+  const stripePaidCount = filteredStripeAppts.filter(a => a.paymentStatus === "paid").length;
+  const stripePendingCount = filteredStripeAppts.filter(a => a.paymentStatus !== "paid").length;
+  const averageTicket = stripePaidCount > 0 ? totalStripeGross / stripePaidCount : 0;
+
+  // Export report to CSV
+  const handleExportCSV = () => {
+    const headers = [
+      "ID Transaccion", 
+      "Cliente", 
+      "Email", 
+      "Telefono", 
+      "Vehiculo", 
+      "Servicio", 
+      "Fecha Cita", 
+      "Hora Cita", 
+      "Monto Bruto (MXN)", 
+      "Comision Stripe (MXN)", 
+      "Monto Neto (MXN)", 
+      "Estatus de Pago"
+    ];
+    
+    const rows = filteredStripeAppts.map(appt => {
+      const comision = appt.paymentStatus === "paid" ? (((appt.total || 0) * 0.036 + 3) * 1.16) : 0;
+      const neto = appt.paymentStatus === "paid" ? ((appt.total || 0) - comision) : 0;
+      return [
+        appt.id || "N/A",
+        appt.customerName,
+        appt.customerEmail || "No registrado",
+        appt.phone,
+        appt.vehicle,
+        appt.serviceName,
+        appt.date,
+        appt.time,
+        appt.total || 0,
+        comision.toFixed(2),
+        neto.toFixed(2),
+        appt.paymentStatus === "paid" ? "PAGADA / EXITO" : "PENDIENTE"
+      ];
+    });
+
+    // Handle CSV generation with proper character encoding for Spanish accents
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${val.toString().replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Autovision_Stripe_ReporteContable_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
 
   // RENDER: Login Card if not logged in
@@ -557,6 +680,15 @@ export default function AdminPanel() {
           <Settings className="h-4 w-4" />
           Bancos
         </button>
+        <button
+          onClick={() => setAdminTab("transactions")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            adminTab === "transactions" ? "bg-brand-blue text-black" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Receipt className="h-4 w-4 text-emerald-400" />
+          Stripe / Contabilidad
+        </button>
       </div>
 
       {/* TAB CONTENT: DASHBOARD */}
@@ -631,7 +763,7 @@ export default function AdminPanel() {
             ) : (
               <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-mono text-slate-500 uppercase block">Comisión Adrián (15%)</span>
+                  <span className="text-xs font-mono text-slate-500 uppercase block">Comisión Autovisión (15%)</span>
                   <span className="text-3xl font-black text-purple-400 block mt-1">${stats.commissions.toLocaleString("es-MX")}</span>
                 </div>
                 <div className="h-10 w-10 rounded-xl bg-purple-950/50 border border-purple-500/20 flex items-center justify-center text-purple-400">
@@ -844,7 +976,7 @@ export default function AdminPanel() {
                         <span className="text-emerald-400 font-mono text-xs sm:text-sm">${appt.total.toLocaleString("es-MX")} MXN</span>
                       </div>
                       <div className="flex justify-between border-t border-slate-850 pt-1 text-slate-500 font-mono text-[10px]">
-                        <span>Comisión Adrián (15%):</span>
+                        <span>Comisión Autovisión (15%):</span>
                         <span className="text-purple-400">${appt.commissionAmount.toLocaleString("es-MX")}</span>
                       </div>
 
@@ -1374,7 +1506,7 @@ export default function AdminPanel() {
                 Este catálogo de servicios contiene los precios estándar ("Precio Desde") y tiempos aproximados de trabajo para cada instalación autorizada en Autovisión.
               </p>
               <p className="text-slate-500 text-[11px] leading-relaxed">
-                Solo el administrador Adrián puede reestructurar, pausar o eliminar servicios del catálogo oficial.
+                Solo el administrador de Autovisión puede reestructurar, pausar o eliminar servicios del catálogo oficial.
               </p>
             </div>
           )}
@@ -1556,6 +1688,249 @@ export default function AdminPanel() {
               </button>
             )}
           </form>
+        </div>
+      )}
+
+      {/* TAB CONTENT: STRIPE TRANSACTIONS / ACCOUNTING */}
+      {adminTab === "transactions" && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-blue-950/40 border border-blue-500/10 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-brand-blue flex items-center gap-1.5">
+                🔒 Procesador de Cuentas Conectado
+              </span>
+              <h2 className="text-xl font-black text-white uppercase italic">Auditoría de Pagos Stripe</h2>
+              <p className="text-xs text-slate-400 max-w-xl">
+                Monitorea los ingresos, deduce comisiones automáticas y mantén un control de auditoría de todas las citas pagadas con tarjeta en Autovisión.
+              </p>
+            </div>
+            <button
+              onClick={handleExportCSV}
+              disabled={filteredStripeAppts.length === 0}
+              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs py-2.5 px-4 rounded-xl cursor-pointer active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-emerald-500/10"
+            >
+              <Receipt className="h-4 w-4" />
+              Exportar Reporte Contable (CSV)
+            </button>
+          </div>
+
+          {/* Bento Grid Stats Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Bruto */}
+            <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 space-y-2 flex flex-col justify-between shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Ingreso Bruto (Stripe)</span>
+                <span className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 flex items-center justify-center text-xs font-bold font-mono">
+                  $
+                </span>
+              </div>
+              <div>
+                <span className="text-2xl font-black text-white block">${totalStripeGross.toLocaleString("es-MX")} MXN</span>
+                <span className="text-[10px] text-emerald-400 font-medium block mt-1">✓ {stripePaidCount} Transacciones aprobadas</span>
+              </div>
+            </div>
+
+            {/* Comisiones */}
+            <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 space-y-2 flex flex-col justify-between shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Comisión Stripe Estimada</span>
+                <span className="h-7 w-7 rounded-lg bg-red-500/10 text-red-400 border border-red-500/10 flex items-center justify-center text-xs font-bold font-mono">
+                  %
+                </span>
+              </div>
+              <div>
+                <span className="text-2xl font-black text-red-400 block">-${totalStripeFees.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                <span className="text-[10px] text-slate-500 block mt-1">3.6% + $3.00 MXN + 16% IVA por cobro</span>
+              </div>
+            </div>
+
+            {/* Neto */}
+            <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 space-y-2 flex flex-col justify-between shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Ingreso Neto Real</span>
+                <span className="h-7 w-7 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/10 flex items-center justify-center text-xs font-bold font-mono">
+                  net
+                </span>
+              </div>
+              <div>
+                <span className="text-2xl font-black text-brand-blue block">${totalStripeNet.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                <span className="text-[10px] text-blue-400 font-medium block mt-1">Estimado transferido a banco</span>
+              </div>
+            </div>
+
+            {/* Ticket Promedio */}
+            <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 space-y-2 flex flex-col justify-between shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Ticket Promedio</span>
+                <span className="h-7 w-7 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/10 flex items-center justify-center text-xs font-bold font-mono">
+                  avg
+                </span>
+              </div>
+              <div>
+                <span className="text-2xl font-black text-white block">${averageTicket.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                <span className="text-[10px] text-slate-500 block mt-1">Por cita pagada en línea</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters & Control Panel */}
+          <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-5 space-y-4 shadow-lg">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+              {/* Buscador */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente, correo, teléfono, vehículo, servicio..."
+                  value={stripeSearch}
+                  onChange={(e) => setStripeSearch(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-brand-blue focus:outline-none rounded-xl px-4 py-2.5 pl-11 text-xs text-white transition-all font-mono"
+                />
+                <Search className="absolute left-4 top-3 h-4 w-4 text-slate-500" />
+              </div>
+
+              {/* Filtros de Selección */}
+              <div className="flex flex-wrap gap-2 items-center font-sans">
+                {/* Estatus */}
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+                  <button
+                    onClick={() => setStripeFilterStatus("paid")}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeFilterStatus === "paid" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Exitosas ({stripePaidCount})
+                  </button>
+                  <button
+                    onClick={() => setStripeFilterStatus("pending")}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeFilterStatus === "pending" ? "bg-amber-500/15 text-amber-400 border border-amber-500/20" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Pendientes ({stripePendingCount})
+                  </button>
+                  <button
+                    onClick={() => setStripeFilterStatus("all")}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeFilterStatus === "all" ? "bg-brand-blue/15 text-brand-blue border border-brand-blue/20" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Todas ({stripeAppointments.length})
+                  </button>
+                </div>
+
+                {/* Fecha */}
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+                  <button
+                    onClick={() => setStripeDateFilter("all")}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeDateFilter === "all" ? "bg-slate-850 text-white" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Todo
+                  </button>
+                  <button
+                    onClick={() => setStripeDateFilter("today")}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeDateFilter === "today" ? "bg-slate-850 text-white" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Hoy
+                  </button>
+                  <button
+                    onClick={() => setStripeDateFilter("week")}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeDateFilter === "week" ? "bg-slate-850 text-white" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    7 Días
+                  </button>
+                  <button
+                    onClick={() => setStripeDateFilter("month")}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer ${
+                      stripeDateFilter === "month" ? "bg-slate-850 text-white" : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Mes
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* List Table container */}
+            <div className="overflow-x-auto border border-slate-800/60 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs font-mono">
+                <thead>
+                  <tr className="bg-slate-900 text-slate-500 border-b border-slate-800 uppercase text-[9px] tracking-wider font-bold">
+                    <th className="py-3 px-4">Cliente / Info de Pago</th>
+                    <th className="py-3 px-4">Vehículo y Servicio</th>
+                    <th className="py-3 px-4">Fecha Cita</th>
+                    <th className="py-3 px-4 text-right">Monto Bruto</th>
+                    <th className="py-3 px-4 text-right text-red-400">Comisión (Est.)</th>
+                    <th className="py-3 px-4 text-right text-brand-blue">Monto Neto</th>
+                    <th className="py-3 px-4 text-center">Estatus</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40">
+                  {filteredStripeAppts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <span className="text-xl">📊</span>
+                          <p className="text-xs font-sans">No se encontraron transacciones con los filtros seleccionados.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStripeAppts.map((appt) => {
+                      const comision = appt.paymentStatus === "paid" ? (((appt.total || 0) * 0.036 + 3) * 1.16) : 0;
+                      const neto = appt.paymentStatus === "paid" ? ((appt.total || 0) - comision) : 0;
+
+                      return (
+                        <tr key={appt.id} className="hover:bg-slate-900/45 transition-colors group">
+                          <td className="py-3.5 px-4 space-y-1 max-w-[200px] truncate">
+                            <span className="font-bold text-white block group-hover:text-brand-blue transition-colors font-sans text-xs">
+                              {appt.customerName}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block truncate font-sans">{appt.customerEmail || "Sin Correo registrado"}</span>
+                            <span className="text-[9px] text-slate-500 font-mono block">ID: {appt.id?.substring(0, 10)}...</span>
+                          </td>
+                          <td className="py-3.5 px-4 space-y-1">
+                            <span className="text-slate-300 block font-sans text-xs">{appt.serviceName}</span>
+                            <span className="text-[10px] text-slate-400 block uppercase tracking-widest">{appt.vehicle}</span>
+                          </td>
+                          <td className="py-3.5 px-4 space-y-1">
+                            <span className="text-slate-300 block font-sans">{appt.date}</span>
+                            <span className="text-[10px] text-slate-500 block">{appt.time} hrs</span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-bold text-white">
+                            ${(appt.total || 0).toLocaleString("es-MX")}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-red-400 font-medium">
+                            {appt.paymentStatus === "paid" ? `-$${comision.toFixed(2)}` : "$0.00"}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-brand-blue font-bold">
+                            {appt.paymentStatus === "paid" ? `$${neto.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "$0.00"}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            {appt.paymentStatus === "paid" ? (
+                              <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-md font-sans">
+                                ✓ Exitoso
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-md font-sans">
+                                ⌛ Pendiente
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>

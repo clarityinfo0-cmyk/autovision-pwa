@@ -68,7 +68,7 @@
         "date": { "type": "string" },
         "time": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "confirmed", "processing", "completed", "cancelled"] },
-        "paymentMethod": { "type": "string", "enum": ["cash", "transfer", "mercadopago"] },
+        "paymentMethod": { "type": "string", "enum": ["cash", "transfer", "card"] },
         "paymentStatus": { "type": "string", "enum": ["pending", "proof_sent", "paid", "rejected"] },
         "servicePrice": { "type": "number" },
         "travelFee": { "type": "number" },

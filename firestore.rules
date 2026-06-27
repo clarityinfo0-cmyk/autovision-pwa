@@ -38,14 +38,16 @@ service cloud.firestore {
     match /appointments/{appointmentId} {
       allow create: if true;
       allow read: if isAdmin() || isTechnician();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || isTechnician();
+      allow delete: if isAdmin();
     }
 
     // Custom Accessory Requests
     match /custom_accessory_requests/{requestId} {
       allow create: if true;
       allow read: if isAdmin() || isTechnician();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || isTechnician();
+      allow delete: if isAdmin();
     }
   }
 }

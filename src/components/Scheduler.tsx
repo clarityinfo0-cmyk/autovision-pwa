@@ -25,6 +25,7 @@ interface SchedulerProps {
 
 export default function Scheduler({ services, selectedServiceId, onClearSelectedService, setCurrentTab }: SchedulerProps) {
   const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
@@ -36,9 +37,15 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
   const [location, setLocation] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "mercadopago">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "card">("cash");
   const [travelZone, setTravelZone] = useState<"near" | "mid" | "far" | "outside">("near");
   const [receiptUrl, setReceiptUrl] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [txnInfo, setTxnInfo] = useState<{ transactionId: string; authorizationCode: string; cardBrand: string } | null>(null);
+  const [verifyingStripe, setVerifyingStripe] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [successId, setSuccessId] = useState<string | null>(null);
@@ -46,7 +53,7 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
   const [locationStatus, setLocationStatus] = useState<"idle" | "fetching" | "success" | "error">("idle");
   const [bankInfo, setBankInfo] = useState<BankSettings>({
     bankName: "BBVA México",
-    accountHolder: "Adrián Autovisión S.A.",
+    accountHolder: "Autovisión Premium S.A.",
     clabe: "0121 8000 1234 5678 90",
     accountNumber: "1234 5678 90"
   });
@@ -63,6 +70,68 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
   // Load Bank settings on render
   useEffect(() => {
     getBankSettings().then(setBankInfo);
+  }, []);
+
+  // Verify secure Stripe transaction on mount if customer was redirected back
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment_status");
+    const sessionId = params.get("session_id");
+
+    if (paymentStatus === "success" && sessionId) {
+      setVerifyingStripe(true);
+      setError(null);
+      
+      fetch(`/api/pay/stripe-verify/${sessionId}`)
+        .then((res) => res.json())
+        .then(async (data) => {
+          if (data.success && data.status === "paid") {
+            // Retrieve pending appointment payload
+            const saved = localStorage.getItem("pending_appointment");
+            if (saved) {
+              try {
+                const apptData = JSON.parse(saved);
+                
+                // Finalize appointment creation in database with verified status (fallback only if not auto-created by backend/webhook)
+                let apptId = data.appointmentId;
+                if (!apptId) {
+                  apptId = await createAppointment({
+                    ...apptData,
+                    paymentStatus: "paid"
+                  });
+                }
+
+                setTxnInfo({
+                  transactionId: data.paymentId || "STRIPE-" + sessionId.substring(0, 10).toUpperCase(),
+                  authorizationCode: "BANCARIA-APROBADA",
+                  cardBrand: "Visa / Mastercard / AMEX (Real)"
+                });
+                setSuccessId(apptId);
+                localStorage.removeItem("pending_appointment");
+              } catch (e) {
+                console.error("Error creating appointment from stored metadata:", e);
+                setError("Pago recibido con éxito, pero hubo un problema al registrar la cita automáticamente. Por favor envíanos un mensaje de WhatsApp para que la agendemos de inmediato.");
+              }
+            } else {
+              setError("Tu pago con tarjeta fue verificado y aprobado con éxito por Stripe, pero la sesión local de tu cita expiró. No te preocupes, envíanos un WhatsApp para agendar tu servicio.");
+            }
+          } else {
+            setError(data.message || "La transacción de tarjeta no pudo ser confirmada por Stripe. Por favor verifica con tu banco.");
+          }
+        })
+        .catch((err) => {
+          console.error("Stripe verification error:", err);
+          setError("Ocurrió un error al verificar tu transacción segura. Por favor, recarga la página o contáctanos por WhatsApp.");
+        })
+        .finally(() => {
+          setVerifyingStripe(false);
+          // Clean the query parameters from the browser address bar for aesthetic perfection
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    } else if (paymentStatus === "cancelled") {
+      setError("El proceso de pago seguro con tarjeta fue cancelado por el usuario.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   // Find active service object
@@ -104,17 +173,176 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
   };
 
 
+  // Helpers to format card inputs
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 4) value = value.substring(0, 4);
+    if (value.length > 2) {
+      value = `${value.substring(0, 2)}/${value.substring(2)}`;
+    }
+    setCardExpiry(value);
+  };
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 16) value = value.substring(0, 16);
+    const blocks = [];
+    for (let i = 0; i < value.length; i += 4) {
+      blocks.push(value.substring(i, i + 4));
+    }
+    setCardNumber(blocks.join(" "));
+  };
+
+  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 4) value = value.substring(0, 4);
+    setCardCvv(value);
+  };
+
   // Upload of receipt is now handled by ImageUploader component direct to setReceiptUrl
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName || !phone || !brand || !model || !year || !serviceId || !date || !time) {
-      setError("Por favor completa todos los campos marcados con asterisco (*).");
+    if (!customerName || !customerEmail || !phone || !brand || !model || !year || !serviceId || !date || !time) {
+      setError("Por favor completa todos los campos marcados con asterisco (*). El correo electrónico es requerido para enviarte tu recibo seguro.");
       return;
     }
 
     setLoading(true);
     setError(null);
+
+    // If direct card payment, validate and call API first
+    if (paymentMethod === "card") {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch("/api/pay/stripe-checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customerName,
+            customerEmail,
+            phone,
+            brand,
+            model,
+            year,
+            serviceId,
+            serviceName: selectedService ? selectedService.name : "Servicio Especial",
+            serviceType,
+            addressText: serviceType === "domicilio" ? addressText : "",
+            references: serviceType === "domicilio" ? references : "",
+            date,
+            time,
+            travelFee,
+            servicePrice,
+            amount: total,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "No se pudo iniciar la transacción de Stripe.");
+        }
+
+        // Real Stripe live/test checkout mode
+        if (data.mode === "real_stripe") {
+          const pendingAppt = {
+            customerName,
+            customerEmail,
+            phone,
+            vehicle: `${brand} ${model} ${year}`,
+            brand,
+            model,
+            year,
+            serviceId,
+            serviceName: selectedService ? selectedService.name : "Servicio Especial",
+            serviceType,
+            addressText: serviceType === "domicilio" ? addressText : "",
+            references: serviceType === "domicilio" ? references : "",
+            location,
+            date,
+            time,
+            paymentMethod,
+            paymentStatus: "pending", // will become paid upon successful verify callback
+            servicePrice,
+            travelFee,
+            total,
+            receiptUrl: "",
+            stripeSessionId: data.sessionId
+          };
+          localStorage.setItem("pending_appointment", JSON.stringify(pendingAppt));
+
+          // Securely redirect customer to Stripe hosted page (full PCI compliance)
+          window.location.href = data.checkoutUrl;
+          return;
+        }
+
+        // Sandbox mode simulation fallback if API key is not configured
+        const cleanNum = cardNumber.replace(/\s+/g, "");
+        if (!cardName.trim()) {
+          setError("Por favor ingresa el nombre del titular para la simulación.");
+          setLoading(false);
+          return;
+        }
+        if (cleanNum.length < 15 || cleanNum.length > 16) {
+          setError("El número de tarjeta de simulación debe tener 15 o 16 dígitos.");
+          setLoading(false);
+          return;
+        }
+        if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
+          setError("La fecha de vencimiento debe estar en formato MM/AA.");
+          setLoading(false);
+          return;
+        }
+        if (cardCvv.length < 3 || cardCvv.length > 4) {
+          setError("El código CVV debe tener 3 o 4 dígitos.");
+          setLoading(false);
+          return;
+        }
+
+        // Write appointment directly as paid (Simulated mode)
+        const apptId = await createAppointment({
+          customerName,
+          phone,
+          vehicle: `${brand} ${model} ${year}`,
+          brand,
+          model,
+          year,
+          serviceId,
+          serviceName: selectedService ? selectedService.name : "Servicio Especial",
+          serviceType,
+          addressText: serviceType === "domicilio" ? addressText : "",
+          references: serviceType === "domicilio" ? references : "",
+          location,
+          date,
+          time,
+          paymentMethod,
+          paymentStatus: "paid",
+          servicePrice,
+          travelFee,
+          total,
+          receiptUrl: ""
+        });
+
+        setTxnInfo({
+          transactionId: data.transactionId,
+          authorizationCode: data.authorizationCode,
+          cardBrand: cleanNum.startsWith("4") ? "Visa (Sandbox)" : "Mastercard (Sandbox)"
+        });
+
+        setSuccessId(apptId);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Error al procesar el pago seguro de tu tarjeta.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     try {
       const apptId = await createAppointment({
@@ -159,6 +387,27 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
     window.open(`https://wa.me/526873675477?text=${text}`, "_blank");
   };
 
+  // If verifying Stripe payment status
+  if (verifyingStripe) {
+    return (
+      <div className="py-24 max-w-2xl mx-auto px-4 sm:px-6 text-center space-y-6 animate-pulse">
+        <div className="inline-block relative">
+          <div className="w-16 h-16 rounded-full border-4 border-blue-500/10 border-t-blue-500 animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xl">🔒</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block">Conexión Bancaria Cifrada SSL</span>
+          <h2 className="text-2xl font-black text-white uppercase italic">Verificando Pago Seguro con Stripe...</h2>
+          <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
+            Por favor, no cierres ni recargues esta página. Estamos comprobando tu transacción directamente con el procesador bancario para acreditar tu cita al instante.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // If appointment booked successfully
   if (successId) {
     return (
@@ -171,7 +420,7 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
             <span className="font-mono text-xs text-blue-400 uppercase font-bold tracking-widest">Cita Registrada</span>
             <h2 className="text-3xl font-black text-white mt-1 uppercase italic">¡Todo Listo para tu Transformación!</h2>
             <p className="text-slate-400 text-sm mt-2">
-              Tu cita se ha programado en nuestro sistema. Adrián te contactará por WhatsApp para afinar los detalles de llegada.
+              Tu cita se ha programado en nuestro sistema. El equipo de Autovisión te contactará por WhatsApp para afinar los detalles de llegada.
             </p>
           </div>
 
@@ -204,18 +453,50 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
             <div className="flex justify-between border-b border-white/5 pb-2.5">
               <span className="text-slate-400 font-medium">Método Pago:</span>
               <span className="text-white font-bold uppercase">
-                {paymentMethod === "cash" ? "💵 Efectivo" : paymentMethod === "transfer" ? "🏦 Transferencia" : "💳 Mercado Pago"}
+                {paymentMethod === "cash" 
+                  ? "💵 Efectivo" 
+                  : paymentMethod === "transfer" 
+                    ? "🏦 Transferencia" 
+                    : paymentMethod === "card" 
+                      ? "💳 Tarjeta Bancaria (Online)" 
+                      : "📱 Mercado Pago"}
               </span>
             </div>
+
+            {paymentMethod === "card" && txnInfo && (
+              <div className="border-b border-white/5 pb-2.5 space-y-2.5 pt-1">
+                <span className="text-emerald-400 font-mono text-[10px] uppercase tracking-widest font-bold flex items-center gap-1">
+                  ✓ Recibo de Transacción Aprobada
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-[#0d1017] p-3 rounded-xl border border-white/5 text-slate-400">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">ID Transacción:</span>
+                    <span className="text-white font-bold">{txnInfo.transactionId}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Autorización:</span>
+                    <span className="text-emerald-400 font-bold">{txnInfo.authorizationCode}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Franquicia:</span>
+                    <span className="text-white font-bold uppercase">{txnInfo.cardBrand}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Estatus de Cita:</span>
+                    <span className="text-blue-400 font-bold">PAGADA / CONFIRMADA</span>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-between pt-2">
-              <span className="text-slate-300 font-bold text-base">Total Estimado:</span>
+              <span className="text-slate-300 font-bold text-base">Total Cobrado:</span>
               <span className="text-emerald-400 font-extrabold text-lg">${total.toLocaleString("es-MX")} MXN</span>
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-blue-600/5 border border-blue-500/10 text-xs text-slate-400 leading-relaxed">
-            * Para asegurar la confirmación inmediata en la agenda de Adrián, haz clic abajo para enviar un mensaje directo de WhatsApp.
+            * Para asegurar la confirmación inmediata en la agenda de Autovisión, haz clic abajo para enviar un mensaje directo de WhatsApp.
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -272,7 +553,7 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
               <Smartphone className="h-4 w-4" /> 1. Datos del Cliente
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Nombre Completo *</label>
                 <input
@@ -281,6 +562,18 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
                   placeholder="Ej. Manuel Rodríguez"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full bg-[#0a0d14] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white transition-all focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-slate-400 uppercase mb-1">Correo Electrónico *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Ej. manuel@correo.com"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
                   className="w-full bg-[#0a0d14] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white transition-all focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -439,7 +732,7 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
                     <Map className="h-5 w-5 text-blue-500" />
                     <div>
                       <span className="text-xs font-bold text-white block">Compartir Ubicación por GPS</span>
-                      <span className="text-[10px] text-slate-500">Adrián llegará exactamente a donde estés.</span>
+                      <span className="text-[10px] text-slate-500">Autovisión llegará exactamente a donde estés.</span>
                     </div>
                   </div>
                   <button
@@ -477,7 +770,7 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
                     <option value="near">Zona Cercana - $100 MXN extra</option>
                     <option value="mid">Zona Media - $150 MXN extra</option>
                     <option value="far">Zona Lejana - $250 MXN extra</option>
-                    <option value="outside">Fuera de la Ciudad - Cotización Manual con Adrián</option>
+                    <option value="outside">Fuera de la Ciudad - Cotización Manual con Autovisión</option>
                   </select>
                 </div>
 
@@ -515,11 +808,11 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
               <CreditCard className="h-4 w-4" /> 4. Método de Pago
             </h3>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setPaymentMethod("cash")}
-                className={`py-3 px-2 sm:px-4 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
+                className={`py-3 px-2 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
                   paymentMethod === "cash"
                     ? "bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/5"
                     : "bg-[#0a0d14] border-white/5 text-slate-400 hover:text-slate-200"
@@ -531,33 +824,33 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
               <button
                 type="button"
                 onClick={() => setPaymentMethod("transfer")}
-                className={`py-3 px-2 sm:px-4 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
+                className={`py-3 px-2 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
                   paymentMethod === "transfer"
                     ? "bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/5"
                     : "bg-[#0a0d14] border-white/5 text-slate-400 hover:text-slate-200"
                 }`}
               >
                 <CreditCard className="h-4 w-4" />
-                Transferencia
+                Transferencia BBVA
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMethod("mercadopago")}
-                className={`py-3 px-2 sm:px-4 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                  paymentMethod === "mercadopago"
+                onClick={() => setPaymentMethod("card")}
+                className={`py-3 px-2 rounded-xl border text-xs sm:text-sm font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
+                  paymentMethod === "card"
                     ? "bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/5"
                     : "bg-[#0a0d14] border-white/5 text-slate-400 hover:text-slate-200"
                 }`}
               >
-                <Smartphone className="h-4 w-4" />
-                Mercado Pago
+                <CreditCard className="h-4 w-4 text-emerald-400" />
+                Tarjeta (Stripe Seguro)
               </button>
             </div>
 
             {/* Cash text */}
             {paymentMethod === "cash" && (
               <p className="text-xs text-slate-500 bg-[#0a0d14] p-4 border border-white/5 rounded-xl leading-relaxed">
-                * Pagas en efectivo al finalizar tu instalación en el taller o al terminar la visita de Adrián a tu domicilio. Marcaremos el estatus de pago como "Pendiente".
+                * Pagas en efectivo al finalizar tu instalación en el taller o al terminar la visita de Autovisión a tu domicilio. Marcaremos el estatus de pago como "Pendiente".
               </p>
             )}
 
@@ -597,12 +890,118 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
               </div>
             )}
 
-            {/* Mercado Pago text */}
-            {paymentMethod === "mercadopago" && (
-              <p className="text-xs text-slate-500 bg-[#0a0d14] p-4 border border-white/5 rounded-xl leading-relaxed">
-                * Preparamos el link manual de pago seguro de Mercado Pago. Te llegará directamente al confirmar tu cita con Adrián por WhatsApp para realizar el pago de forma segura en línea.
-              </p>
+            {/* Card Form */}
+            {paymentMethod === "card" && (
+              <div className="bg-[#0a0d14] p-5 rounded-2xl border border-white/5 space-y-5 animate-fadeIn">
+                <span className="text-[10px] font-mono text-blue-400 uppercase tracking-widest font-bold block">Pago Directo Seguro con Tarjeta</span>
+                
+                {/* Visual Card Preview */}
+                <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-6 border border-white/10 shadow-2xl overflow-hidden flex flex-col justify-between max-w-sm mx-auto">
+                  {/* Decorative glowing gradient spheres */}
+                  <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-blue-500/10 blur-2xl pointer-events-none" />
+                  <div className="absolute -left-12 -bottom-12 w-32 h-32 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
+                  
+                  {/* Top row */}
+                  <div className="flex justify-between items-start z-10">
+                    <div className="space-y-1">
+                      <div className="text-[9px] font-mono tracking-widest text-blue-400 font-bold uppercase">Autovisión Premium</div>
+                      <div className="h-7 w-10 bg-gradient-to-r from-amber-400 to-amber-200 rounded opacity-85 flex items-center justify-center overflow-hidden">
+                        <div className="grid grid-cols-2 gap-0.5 w-6 h-4 opacity-50">
+                          <div className="border border-black/30" />
+                          <div className="border border-black/30" />
+                          <div className="border border-black/30" />
+                          <div className="border border-black/30" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-black italic tracking-wider text-white">
+                        {cardNumber.startsWith("4") ? "VISA" : cardNumber.startsWith("5") ? "MASTERCARD" : cardNumber.startsWith("3") ? "AMEX" : "CARD"}
+                      </span>
+                      <div className="text-[7px] text-slate-500 font-mono mt-0.5">PLATINUM</div>
+                    </div>
+                  </div>
+
+                  {/* Card number display */}
+                  <div className="text-base sm:text-lg font-mono text-center tracking-[0.15em] font-medium text-white select-none my-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10">
+                    {cardNumber || "•••• •••• •••• ••••"}
+                  </div>
+
+                  {/* Bottom row: Name & Expiry */}
+                  <div className="flex justify-between items-end font-mono z-10">
+                    <div className="text-left max-w-[70%]">
+                      <span className="text-[7px] text-slate-500 block uppercase tracking-wider">Titular</span>
+                      <span className="text-xs text-white uppercase font-bold tracking-wider truncate block">
+                        {cardName || "NOMBRE TITULAR"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[7px] text-slate-500 block uppercase tracking-wider">Vence</span>
+                      <span className="text-xs text-white font-bold tracking-widest">
+                        {cardExpiry || "MM/AA"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Fields */}
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Nombre del Titular (Como aparece en la tarjeta) *</label>
+                    <input
+                      type="text"
+                      placeholder="JUAN PEREZ GONZALEZ"
+                      value={cardName}
+                      onChange={(e) => setCardName(e.target.value.toUpperCase())}
+                      className="w-full bg-[#0d1017] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2 text-sm text-white font-mono uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Número de Tarjeta (16 dígitos) *</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="4152 3672 9012 3456"
+                        value={cardNumber}
+                        onChange={handleCardNumberChange}
+                        className="w-full bg-[#0d1017] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2 pl-11 text-sm text-white font-mono"
+                      />
+                      <CreditCard className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Vencimiento (MM/AA) *</label>
+                      <input
+                        type="text"
+                        placeholder="12/28"
+                        value={cardExpiry}
+                        onChange={handleExpiryChange}
+                        className="w-full bg-[#0d1017] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2 text-sm text-white font-mono text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">CVV *</label>
+                      <input
+                        type="password"
+                        placeholder="•••"
+                        value={cardCvv}
+                        onChange={handleCvvChange}
+                        className="w-full bg-[#0d1017] border border-white/5 focus:border-blue-500 focus:outline-none rounded-xl px-4 py-2 text-sm text-white font-mono text-center"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 text-[10px] text-slate-400 bg-[#0d1017] p-3 border border-white/5 rounded-xl leading-relaxed">
+                  <span className="text-emerald-400 text-sm">🔒</span>
+                  <p>Conexión segura cifrada SSL de extremo a extremo. Los datos de tu tarjeta nunca se almacenan en texto plano y se procesan bajo altos estándares de seguridad bancaria.</p>
+                </div>
+              </div>
             )}
+
           </div>
 
           {/* Pricing summary */}

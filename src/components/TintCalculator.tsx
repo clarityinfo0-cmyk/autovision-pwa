@@ -377,7 +377,7 @@ export default function TintCalculator({ onSelectAndBook }: TintCalculatorProps)
                 )}
 
                 <div className="flex justify-between items-center text-slate-400">
-                  <span>Instalación profesional con Adrián</span>
+                  <span>Instalación profesional con Autovisión</span>
                   <span className="text-emerald-400 font-bold uppercase text-[9px] px-1.5 py-0.5 bg-emerald-500/10 rounded">¡Incluida!</span>
                 </div>
 
@@ -424,7 +424,7 @@ export default function TintCalculator({ onSelectAndBook }: TintCalculatorProps)
                   className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] hover:bg-[#20ba56] text-black text-xs font-extrabold uppercase tracking-wider py-3.5 transition-all active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(37,211,102,0.3)]"
                 >
                   <Smartphone className="h-4 w-4" />
-                  Consultar / Enviar a Adrián
+                  Consultar / Enviar a Autovisión
                 </button>
                 
                 {onSelectAndBook && (

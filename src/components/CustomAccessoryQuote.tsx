@@ -79,7 +79,7 @@ export default function CustomAccessoryQuote() {
 
   const sendWhatsAppQuote = () => {
     const text = encodeURIComponent(
-      `Hola Adrián, acabo de enviar una solicitud de cotización externa en la app de Autovisión.\n\n*Cliente:* ${customerName}\n*Celular:* ${phone}\n*Vehículo:* ${brand} ${model} (${year})\n*Pieza a cotizar:* ${accessoryName}\n*Detalles:* ${notes}\n\nQuedo al pendiente de tu presupuesto.`
+      `Hola Autovisión, acabo de enviar una solicitud de cotización externa en la app de Autovisión.\n\n*Cliente:* ${customerName}\n*Celular:* ${phone}\n*Vehículo:* ${brand} ${model} (${year})\n*Pieza a cotizar:* ${accessoryName}\n*Detalles:* ${notes}\n\nQuedo al pendiente de tu presupuesto.`
     );
     window.open(`https://wa.me/526873675477?text=${text}`, "_blank");
   };
@@ -95,7 +95,7 @@ export default function CustomAccessoryQuote() {
             <span className="font-mono text-xs text-emerald-400 uppercase font-bold tracking-widest">Solicitud Creada</span>
             <h2 className="text-3xl font-black text-white mt-1 uppercase italic">¡Solicitud Registrada con Éxito!</h2>
             <p className="text-slate-400 text-sm mt-2">
-              Hemos guardado tu solicitud de accesorio externo. Adrián buscará la pieza exacta con nuestros distribuidores autorizados.
+              Hemos guardado tu solicitud de accesorio externo. Autovisión buscará la pieza exacta con nuestros distribuidores autorizados.
             </p>
           </div>
 
@@ -113,7 +113,7 @@ export default function CustomAccessoryQuote() {
 
           {/* Prompt for WhatsApp escalation */}
           <div className="p-4 rounded-2xl bg-blue-600/5 border border-blue-500/10 text-xs text-slate-400">
-            Puedes acelerar el proceso enviando los detalles y la foto de la pieza directamente a Adrián por WhatsApp.
+            Puedes acelerar el proceso enviando los detalles y la foto de la pieza directamente a Autovisión por WhatsApp.
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

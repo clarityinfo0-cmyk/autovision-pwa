@@ -29,15 +29,18 @@ export interface Appointment {
   date: string;
   time: string;
   status: "pending" | "confirmed" | "processing" | "completed" | "cancelled";
-  paymentMethod: "cash" | "transfer" | "mercadopago";
+  paymentMethod: "cash" | "transfer" | "card";
   paymentStatus: "pending" | "proof_sent" | "paid" | "rejected";
   servicePrice: number;
   travelFee: number;
   total: number;
-  commissionRate: number; // 0.15 for Adrián
+  commissionRate: number; // 0.15 for Autovisión admin
   commissionAmount: number;
   receiptUrl?: string; // proof of transfer
   notes?: string; // extra notes or customer message
+  customerEmail?: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
   createdAt: any; // Firestore Timestamp
 }
 

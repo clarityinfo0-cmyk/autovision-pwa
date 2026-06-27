@@ -178,7 +178,7 @@ export default function Landing({ services, gallery, onSelectService, setCurrent
                 <span className="text-xs font-mono text-blue-400 uppercase tracking-widest font-bold">Atención Inmediata</span>
                 <h3 className="text-2xl font-bold mt-2 text-white uppercase italic">Soporte Directo vía WhatsApp</h3>
                 <p className="text-gray-400 mt-2 text-sm leading-relaxed max-w-xl">
-                  ¿Tienes dudas sobre compatibilidad o accesorios especiales? Envíanos un mensaje rápido por WhatsApp y nuestro líder técnico Adrián te asesorará personalmente en minutos.
+                  ¿Tienes dudas sobre compatibilidad o accesorios especiales? Envíanos un mensaje rápido por WhatsApp y nuestro equipo técnico de Autovisión te asesorará personalmente en minutos.
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500 border border-blue-500/20">
@@ -270,7 +270,7 @@ export default function Landing({ services, gallery, onSelectService, setCurrent
               Paquetes <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-400 to-yellow-300 drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]">Exclusivos Autovisión</span>
             </h2>
             <p className="mt-4 text-slate-400 text-sm">
-              Aprovecha estos combos especiales diseñados por Adrián para darte el máximo valor y equipamiento premium para tu auto. ¡Con obsequios incluidos y garantía garantizada!
+              Aprovecha estos combos especiales diseñados por Autovisión para darte el máximo valor y equipamiento premium para tu auto. ¡Con obsequios incluidos y garantía garantizada!
             </p>
           </div>
 
@@ -410,7 +410,7 @@ export default function Landing({ services, gallery, onSelectService, setCurrent
           <div className="text-center max-w-xl mx-auto mb-10">
             <h2 className="text-xs font-mono text-blue-400 uppercase tracking-widest font-bold">Galería de Resultados</h2>
             <p className="text-3xl font-black text-white mt-1 uppercase italic">Antes y Después</p>
-            <p className="text-slate-400 text-sm mt-2">Observa el nivel de detalle y precisión en los trabajos terminados por Adrián.</p>
+            <p className="text-slate-400 text-sm mt-2">Observa el nivel de detalle y precisión en los trabajos terminados por Autovisión.</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">

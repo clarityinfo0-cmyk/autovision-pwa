@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles, Car, Send, HelpCircle, Compass, Flame, AlertCircle } from "lucide-react";
 
-// Lightweight markdown renderer to parse simple Markdown syntax (headers, bold, lists, lines)
+// Lightweight markdown renderer to parse simple Markdown syntax (headers, bold, lists, lines, links)
 export function parseMarkdown(text: string) {
   if (!text) return "";
   
@@ -15,21 +15,21 @@ export function parseMarkdown(text: string) {
       return (
         <h4 key={idx} className="text-md font-bold text-white mt-4 mb-2 flex items-center gap-2">
           <Flame className="h-4 w-4 text-cyan-400" />
-          {trimmed.replace("###", "").trim()}
+          {renderTextWithLinksAndBold(trimmed.replace("###", "").trim())}
         </h4>
       );
     }
     if (trimmed.startsWith("##")) {
       return (
         <h3 key={idx} className="text-lg font-extrabold text-brand-blue mt-5 mb-2 uppercase tracking-wider">
-          {trimmed.replace("##", "").trim()}
+          {renderTextWithLinksAndBold(trimmed.replace("##", "").trim())}
         </h3>
       );
     }
     if (trimmed.startsWith("#")) {
       return (
         <h2 key={idx} className="text-xl font-black text-white mt-6 mb-3 border-b border-slate-800 pb-1">
-          {trimmed.replace("#", "").trim()}
+          {renderTextWithLinksAndBold(trimmed.replace("#", "").trim())}
         </h2>
       );
     }
@@ -39,7 +39,7 @@ export function parseMarkdown(text: string) {
       const content = trimmed.substring(1).trim();
       return (
         <li key={idx} className="ml-5 list-disc text-sm text-slate-300 mb-1.5 leading-relaxed">
-          {renderBoldText(content)}
+          {renderTextWithLinksAndBold(content)}
         </li>
       );
     }
@@ -49,20 +49,45 @@ export function parseMarkdown(text: string) {
     
     return (
       <p key={idx} className="text-sm text-slate-300 leading-relaxed mb-3">
-        {renderBoldText(trimmed)}
+        {renderTextWithLinksAndBold(trimmed)}
       </p>
     );
   });
 }
 
-// Support simple **bold text**
-function renderBoldText(text: string) {
-  const parts = text.split(/\*\*([\s\S]*?)\*\*/g);
-  if (parts.length <= 1) return text;
+// Support simple **bold text** and standard markdown [links](url) recursively
+export function renderTextWithLinksAndBold(text: string): React.ReactNode[] {
+  if (!text) return [];
   
-  return parts.map((part, i) => {
-    if (i % 2 === 1) {
-      return <strong key={i} className="text-white font-semibold text-brand-blue">{part}</strong>;
+  // Split the text into parts containing either **bold** or [links](url)
+  const regex = /(\*\*.*?\*\*|\[.*?\]\(.*?\))/g;
+  const rawParts = text.split(regex);
+  
+  return rawParts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      const innerText = part.slice(2, -2);
+      return (
+        <strong key={index} className="text-white font-bold text-blue-400">
+          {renderTextWithLinksAndBold(innerText)}
+        </strong>
+      );
+    } else if (part.startsWith("[") && part.includes("](")) {
+      const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/);
+      if (linkMatch) {
+        const anchor = linkMatch[1];
+        const url = linkMatch[2];
+        return (
+          <a
+            key={index}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-cyan-400 hover:text-cyan-300 underline font-semibold transition-all hover:scale-[1.01]"
+          >
+            {renderTextWithLinksAndBold(anchor)}
+          </a>
+        );
+      }
     }
     return part;
   });
@@ -310,7 +335,7 @@ export default function AIAdvisor() {
 
           {/* Consultation Note */}
           <div className="mt-4 p-4 rounded-xl bg-[#0a0d14] border border-white/5 text-xs text-slate-500 leading-relaxed">
-            * Las sugerencias de IA son de referencia técnica técnica basada en estándares automotrices. Antes de realizar cualquier instalación, Adrián comprobará la compatibilidad eléctrica e interna física de tu vehículo para garantizar cero problemas.
+            * Las sugerencias de IA son de referencia técnica basada en estándares automotrices. Antes de realizar cualquier instalación, nuestro equipo técnico comprobará la compatibilidad eléctrica e interna física de tu vehículo para garantizar cero problemas.
           </div>
         </div>
       </div>

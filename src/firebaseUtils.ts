@@ -82,7 +82,7 @@ export async function seedInitialDataIfNeeded() {
     try {
       servicesSnap = await getDocs(collection(db, "services"));
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, "services");
+      console.warn("Could not read 'services' collection during check. This is normal if permission rules restrict it.", error);
       return;
     }
 
@@ -92,7 +92,7 @@ export async function seedInitialDataIfNeeded() {
         try {
           await setDoc(doc(db, "services", service.id), service);
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `services/${service.id}`);
+          console.warn(`Could not seed service/${service.id}:`, error);
         }
       }
     } else {
@@ -104,7 +104,7 @@ export async function seedInitialDataIfNeeded() {
           try {
             await setDoc(doc(db, "services", p.id), p);
           } catch (error) {
-            handleFirestoreError(error, OperationType.WRITE, `services/${p.id}`);
+            console.warn(`Could not seed missing package service/${p.id}:`, error);
           }
         }
       }
@@ -114,7 +114,7 @@ export async function seedInitialDataIfNeeded() {
     try {
       gallerySnap = await getDocs(collection(db, "gallery"));
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, "gallery");
+      console.warn("Could not read 'gallery' collection during check.", error);
       return;
     }
 
@@ -128,7 +128,7 @@ export async function seedInitialDataIfNeeded() {
             createdAt: Timestamp.now()
           });
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, "gallery");
+          console.warn("Could not seed gallery item:", error);
         }
       }
     }
@@ -138,7 +138,7 @@ export async function seedInitialDataIfNeeded() {
     try {
       settingsSnap = await getDocs(collection(db, "settings"));
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, "settings");
+      console.warn("Could not read 'settings' collection during check.", error);
       return;
     }
 
@@ -147,16 +147,16 @@ export async function seedInitialDataIfNeeded() {
       try {
         await setDoc(doc(db, "settings", "bank"), {
           bankName: "BBVA México",
-          accountHolder: "Adrián Autovisión S.A.",
+          accountHolder: "Autovisión Premium S.A.",
           clabe: "0121 8000 1234 5678 90",
           accountNumber: "1234 5678 90"
         });
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, "settings/bank");
+        console.warn("Could not seed settings/bank:", error);
       }
     }
   } catch (error) {
-    console.error("Error seeding initial data:", error);
+    console.warn("Error seeding initial data:", error);
   }
 }
 
@@ -188,7 +188,7 @@ export async function createAppointment(appointment: Omit<Appointment, "id" | "c
 
   const docData: Omit<Appointment, "id"> = {
     ...appointment,
-    status: "pending",
+    status: appointment.paymentStatus === "paid" ? "confirmed" : "pending",
     paymentStatus: appointment.paymentStatus || "pending",
     servicePrice,
     travelFee,
@@ -231,7 +231,7 @@ export async function getBankSettings(): Promise<BankSettings> {
     const snap = await getDocs(collection(db, path));
     let settings: BankSettings = {
       bankName: "BBVA México",
-      accountHolder: "Adrián Autovisión S.A.",
+      accountHolder: "Autovisión Premium S.A.",
       clabe: "0121 8000 1234 5678 90",
       accountNumber: "1234 5678 90"
     };
@@ -245,7 +245,7 @@ export async function getBankSettings(): Promise<BankSettings> {
     handleFirestoreError(error, OperationType.GET, path);
     return {
       bankName: "BBVA México",
-      accountHolder: "Adrián Autovisión S.A.",
+      accountHolder: "Autovisión Premium S.A.",
       clabe: "0121 8000 1234 5678 90",
       accountNumber: "1234 5678 90"
     };
