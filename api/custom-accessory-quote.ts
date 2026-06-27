@@ -12,8 +12,8 @@ export default async function handler(req: any, res: any) {
       accessory,
       budget,
       style,
-      notes
-    } = req.body;
+      notes,
+    } = req.body || {};
 
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -56,7 +56,7 @@ No inventes precios exactos si no se proporcionó lista de precios.
 `;
 
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
       {
         method: "POST",
         headers: {
@@ -69,6 +69,12 @@ No inventes precios exactos si no se proporcionó lista de precios.
               parts: [{ text: prompt }],
             },
           ],
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 2048,
+          },
         }),
       }
     );
@@ -77,8 +83,11 @@ No inventes precios exactos si no se proporcionó lista de precios.
 
     if (!response.ok) {
       console.error("Gemini custom quote error:", data);
-      return res.status(500).json({
-        error: "Gemini no pudo generar la cotización inteligente.",
+
+      return res.status(response.status).json({
+        error:
+          data?.error?.message ||
+          "No fue posible generar la cotización con IA.",
       });
     }
 
@@ -89,6 +98,7 @@ No inventes precios exactos si no se proporcionó lista de precios.
     return res.status(200).json({ quote });
   } catch (error) {
     console.error("Custom accessory quote error:", error);
+
     return res.status(500).json({
       error: "Error interno del cotizador IA.",
     });
