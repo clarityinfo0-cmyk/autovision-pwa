@@ -1,6 +1,4 @@
-declare const require: any;
-
-const Stripe = require("stripe");
+import Stripe from "stripe";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
