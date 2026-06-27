@@ -244,12 +244,14 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
 
         const data = await response.json();
 
-        if (!response.ok || !data.success) {
+        if (!response.ok) {
           throw new Error(data.error || "No se pudo iniciar la transacción de Stripe.");
         }
 
-        // Real Stripe live/test checkout mode
-        if (data.mode === "real_stripe") {
+        const checkoutUrl = data.url || data.checkoutUrl;
+        const stripeSessionId = data.sessionId || data.id;
+
+        if (checkoutUrl) {
           const pendingAppt = {
             customerName,
             customerEmail,
@@ -267,74 +269,20 @@ export default function Scheduler({ services, selectedServiceId, onClearSelected
             date,
             time,
             paymentMethod,
-            paymentStatus: "pending", // will become paid upon successful verify callback
+            paymentStatus: "pending",
             servicePrice,
             travelFee,
             total,
             receiptUrl: "",
-            stripeSessionId: data.sessionId
+            stripeSessionId,
           };
           localStorage.setItem("pending_appointment", JSON.stringify(pendingAppt));
 
-          // Securely redirect customer to Stripe hosted page (full PCI compliance)
-          window.location.href = data.checkoutUrl;
+          window.location.href = checkoutUrl;
           return;
         }
-
-        // Sandbox mode simulation fallback if API key is not configured
-        const cleanNum = cardNumber.replace(/\s+/g, "");
-        if (!cardName.trim()) {
-          setError("Por favor ingresa el nombre del titular para la simulación.");
-          setLoading(false);
-          return;
-        }
-        if (cleanNum.length < 15 || cleanNum.length > 16) {
-          setError("El número de tarjeta de simulación debe tener 15 o 16 dígitos.");
-          setLoading(false);
-          return;
-        }
-        if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
-          setError("La fecha de vencimiento debe estar en formato MM/AA.");
-          setLoading(false);
-          return;
-        }
-        if (cardCvv.length < 3 || cardCvv.length > 4) {
-          setError("El código CVV debe tener 3 o 4 dígitos.");
-          setLoading(false);
-          return;
-        }
-
-        // Write appointment directly as paid (Simulated mode)
-        const apptId = await createAppointment({
-          customerName,
-          phone,
-          vehicle: `${brand} ${model} ${year}`,
-          brand,
-          model,
-          year,
-          serviceId,
-          serviceName: selectedService ? selectedService.name : "Servicio Especial",
-          serviceType,
-          addressText: serviceType === "domicilio" ? addressText : "",
-          references: serviceType === "domicilio" ? references : "",
-          location,
-          date,
-          time,
-          paymentMethod,
-          paymentStatus: "paid",
-          servicePrice,
-          travelFee,
-          total,
-          receiptUrl: ""
-        });
-
-        setTxnInfo({
-          transactionId: data.transactionId,
-          authorizationCode: data.authorizationCode,
-          cardBrand: cleanNum.startsWith("4") ? "Visa (Sandbox)" : "Mastercard (Sandbox)"
-        });
-
-        setSuccessId(apptId);
+        
+        throw new Error("Stripe no devolvió una URL de checkout.");
       } catch (err: any) {
         console.error(err);
         setError(err.message || "Error al procesar el pago seguro de tu tarjeta.");
