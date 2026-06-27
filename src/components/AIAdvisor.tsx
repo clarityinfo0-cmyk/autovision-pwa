@@ -1,65 +1,10 @@
 import React, { useState } from "react";
-import { Sparkles, Car, Send, HelpCircle, Compass, Flame, AlertCircle } from "lucide-react";
+import { Sparkles, Car, Send, HelpCircle, Flame, AlertCircle } from "lucide-react";
 
-// Lightweight markdown renderer to parse simple Markdown syntax (headers, bold, lists, lines, links)
-export function parseMarkdown(text: string) {
-  if (!text) return "";
-  
-  // Basic lines split
-  const lines = text.split("\n");
-  return lines.map((line, idx) => {
-    let trimmed = line.trim();
-    
-    // Headers
-    if (trimmed.startsWith("###")) {
-      return (
-        <h4 key={idx} className="text-md font-bold text-white mt-4 mb-2 flex items-center gap-2">
-          <Flame className="h-4 w-4 text-cyan-400" />
-          {renderTextWithLinksAndBold(trimmed.replace("###", "").trim())}
-        </h4>
-      );
-    }
-    if (trimmed.startsWith("##")) {
-      return (
-        <h3 key={idx} className="text-lg font-extrabold text-brand-blue mt-5 mb-2 uppercase tracking-wider">
-          {renderTextWithLinksAndBold(trimmed.replace("##", "").trim())}
-        </h3>
-      );
-    }
-    if (trimmed.startsWith("#")) {
-      return (
-        <h2 key={idx} className="text-xl font-black text-white mt-6 mb-3 border-b border-slate-800 pb-1">
-          {renderTextWithLinksAndBold(trimmed.replace("#", "").trim())}
-        </h2>
-      );
-    }
-
-    // List item
-    if (trimmed.startsWith("*") || trimmed.startsWith("-")) {
-      const content = trimmed.substring(1).trim();
-      return (
-        <li key={idx} className="ml-5 list-disc text-sm text-slate-300 mb-1.5 leading-relaxed">
-          {renderTextWithLinksAndBold(content)}
-        </li>
-      );
-    }
-
-    // Regular paragraph
-    if (trimmed.length === 0) return <div key={idx} className="h-2" />;
-    
-    return (
-      <p key={idx} className="text-sm text-slate-300 leading-relaxed mb-3">
-        {renderTextWithLinksAndBold(trimmed)}
-      </p>
-    );
-  });
-}
-
-// Support simple **bold text** and standard markdown [links](url) recursively
-export function renderTextWithLinksAndBold(text: string): React.ReactNode[] {
+// Solución del tipado para la renderización de texto
+function renderTextWithLinksAndBold(text: string): React.ReactNode[] {
   if (!text) return [];
   
-  // Split the text into parts containing either **bold** or [links](url)
   const regex = /(\*\*.*?\*\*|\[.*?\]\(.*?\))/g;
   const rawParts = text.split(regex);
   
@@ -91,6 +36,60 @@ export function renderTextWithLinksAndBold(text: string): React.ReactNode[] {
     }
     return part;
   });
+}
+
+// Lightweight markdown renderer ajustado para React
+export function parseMarkdown(text: string): React.ReactNode {
+  if (!text) return "";
+  
+  const lines = text.split("\n");
+  return (
+    <>
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        
+        if (trimmed.startsWith("###")) {
+          return (
+            <h4 key={idx} className="text-md font-bold text-white mt-4 mb-2 flex items-center gap-2">
+              <Flame className="h-4 w-4 text-cyan-400" />
+              {renderTextWithLinksAndBold(trimmed.replace("###", "").trim())}
+            </h4>
+          );
+        }
+        if (trimmed.startsWith("##")) {
+          return (
+            <h3 key={idx} className="text-lg font-extrabold text-blue-500 mt-5 mb-2 uppercase tracking-wider">
+              {renderTextWithLinksAndBold(trimmed.replace("##", "").trim())}
+            </h3>
+          );
+        }
+        if (trimmed.startsWith("#")) {
+          return (
+            <h2 key={idx} className="text-xl font-black text-white mt-6 mb-3 border-b border-slate-800 pb-1">
+              {renderTextWithLinksAndBold(trimmed.replace("#", "").trim())}
+            </h2>
+          );
+        }
+
+        if (trimmed.startsWith("*") || trimmed.startsWith("-")) {
+          const content = trimmed.substring(1).trim();
+          return (
+            <li key={idx} className="ml-5 list-disc text-sm text-slate-300 mb-1.5 leading-relaxed">
+              {renderTextWithLinksAndBold(content)}
+            </li>
+          );
+        }
+
+        if (trimmed.length === 0) return <div key={idx} className="h-2" />;
+        
+        return (
+          <p key={idx} className="text-sm text-slate-300 leading-relaxed mb-3">
+            {renderTextWithLinksAndBold(trimmed)}
+          </p>
+        );
+      })}
+    </>
+  );
 }
 
 export default function AIAdvisor() {
